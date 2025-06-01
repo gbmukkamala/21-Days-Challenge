@@ -1,99 +1,189 @@
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
-    authDomain: "challenge-21-days.firebaseapp.com",
-    projectId: "challenge-21-days",
-    storageBucket: "challenge-21-days.appspot.com",
-    messagingSenderId: "470461590812",
-    appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
-    measurementId: "G-JTNJ525GC3"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  const calendar = document.getElementById("calendar");
-  const congratsMessage = document.getElementById("congratsMessage");
-
-  let userId = localStorage.getItem("challengeUserId");
-  if (!userId) {
-    userId = crypto.randomUUID();
-    localStorage.setItem("challengeUserId", userId);
-  }
-
-  async function loadData() {
-    const docRef = doc(db, "challenge", userId);
-    const docSnap = await getDoc(docRef);
-    let data = {};
-
-    // If no data exists, create default unchecked days
-    if (docSnap.exists()) {
-      data = docSnap.data();
-    } else {
-      for (let i = 1; i <= 21; i++) {
-        data[`day${i}`] = false;
-      }
-      await setDoc(docRef, data);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>21 Days Challenge</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: linear-gradient(to right, #f5f7fa, #c3cfe2);
+      color: #333;
     }
 
-    calendar.innerHTML = ""; // Clear existing
-
-    for (let i = 1; i <= 21; i++) {
-      const isChecked = data[`day${i}`] === true;
-      const dayDiv = document.createElement("div");
-      dayDiv.className = "day";
-      dayDiv.innerHTML = `
-        Day ${i}<br>
-        <input type="checkbox" id="day${i}" ${isChecked ? "checked" : ""} onchange="checkChallenge()">
-      `;
-      calendar.appendChild(dayDiv);
+    h1 {
+      text-align: center;
+      color: #2c3e50;
     }
 
-    checkChallenge();
-  }
+    .rules {
+      max-width: 700px;
+      margin: 0 auto 30px;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
 
-  window.checkChallenge = async function () {
-    let streak = 0;
-    let state = {};
+    .calendar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
 
-    for (let i = 1; i <= 21; i++) {
-      const checkbox = document.getElementById(`day${i}`);
-      const checked = checkbox.checked;
-      state[`day${i}`] = checked;
-      if (checked) {
-        streak++;
+    .day {
+      width: 80px;
+      height: 100px;
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+
+    .day input[type="checkbox"] {
+      margin-top: 10px;
+      width: 20px;
+      height: 20px;
+    }
+
+    #congratsMessage {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-top: 30px;
+      color: green;
+      font-weight: bold;
+      display: none;
+    }
+
+    #resetBtn {
+      display: block;
+      margin: 20px auto;
+      padding: 10px 20px;
+      font-size: 1rem;
+      border: none;
+      background-color: #e74c3c;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    #resetBtn:hover {
+      background-color: #c0392b;
+    }
+  </style>
+</head>
+<body>
+  <h1>21 Days Challenge</h1>
+
+  <div class="rules">
+    <h2>Rules & Regulations</h2>
+    <p>
+      Write your challenge rules here. For example: Complete your daily task consistently for 21 days without skipping. You can only check a day once it's done. Don't skip a day!
+    </p>
+  </div>
+
+  <div class="calendar" id="calendar"></div>
+
+  <button id="resetBtn" onclick="resetChallenge()">Reset</button>
+
+  <div id="congratsMessage">🎉 Congrats! Challenge completed successfully! 🎉</div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
+      authDomain: "challenge-21-days.firebaseapp.com",
+      projectId: "challenge-21-days",
+      storageBucket: "challenge-21-days.appspot.com",
+      messagingSenderId: "470461590812",
+      appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
+      measurementId: "G-JTNJ525GC3"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const calendar = document.getElementById("calendar");
+    const congratsMessage = document.getElementById("congratsMessage");
+
+    let userId = localStorage.getItem("challengeUserId");
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem("challengeUserId", userId);
+    }
+
+    async function loadData() {
+      calendar.innerHTML = ""; // Clear old content
+      const docRef = doc(db, "challenge", userId);
+      const docSnap = await getDoc(docRef);
+
+      let data = {};
+      if (docSnap.exists()) {
+        data = docSnap.data();
       } else {
-        streak = 0;
+        for (let i = 1; i <= 21; i++) {
+          data[`day${i}`] = false;
+        }
+        await setDoc(docRef, data);
       }
+
+      for (let i = 1; i <= 21; i++) {
+        const isChecked = data[`day${i}`] === true;
+        const dayDiv = document.createElement("div");
+        dayDiv.className = "day";
+        dayDiv.innerHTML = `
+          Day ${i}<br>
+          <input type="checkbox" id="day${i}" ${isChecked ? "checked" : ""} onchange="checkChallenge()">
+        `;
+        calendar.appendChild(dayDiv);
+      }
+
+      checkChallenge();
     }
 
-    if (streak === 21) {
-      congratsMessage.style.display = "block";
-    } else {
+    window.checkChallenge = async function () {
+      let streak = 0;
+      let state = {};
+
+      for (let i = 1; i <= 21; i++) {
+        const checkbox = document.getElementById(`day${i}`);
+        const checked = checkbox.checked;
+        state[`day${i}`] = checked;
+        if (checked) {
+          streak++;
+        } else {
+          streak = 0;
+        }
+      }
+
+      congratsMessage.style.display = streak === 21 ? "block" : "none";
+      await setDoc(doc(db, "challenge", userId), state);
+    };
+
+    window.resetChallenge = async function () {
+      const blankState = {};
+      for (let i = 1; i <= 21; i++) {
+        blankState[`day${i}`] = false;
+        const checkbox = document.getElementById(`day${i}`);
+        if (checkbox) checkbox.checked = false;
+      }
       congratsMessage.style.display = "none";
-    }
+      await setDoc(doc(db, "challenge", userId), blankState);
+    };
 
-    await setDoc(doc(db, "challenge", userId), state);
-  };
-
-  window.resetChallenge = async function () {
-    const blankState = {};
-    for (let i = 1; i <= 21; i++) {
-      blankState[`day${i}`] = false;
-    }
-
-    // Update UI
-    for (let i = 1; i <= 21; i++) {
-      const checkbox = document.getElementById(`day${i}`);
-      if (checkbox) checkbox.checked = false;
-    }
-
-    congratsMessage.style.display = "none";
-    await setDoc(doc(db, "challenge", userId), blankState);
-  };
-
-  window.onload = loadData;
-</script>
+    window.onload = loadData;
+  </script>
+</body>
+</html>
