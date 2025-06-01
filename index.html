@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>21 Days Challenge</title>
   <style>
     body {
@@ -12,10 +12,12 @@
       background: linear-gradient(to right, #f5f7fa, #c3cfe2);
       color: #333;
     }
+
     h1 {
       text-align: center;
       color: #2c3e50;
     }
+
     .rules {
       max-width: 700px;
       margin: 0 auto 30px;
@@ -24,6 +26,7 @@
       border-radius: 12px;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
+
     .calendar {
       display: flex;
       flex-wrap: wrap;
@@ -32,6 +35,7 @@
       max-width: 700px;
       margin: 0 auto;
     }
+
     .day {
       width: 80px;
       height: 100px;
@@ -44,11 +48,13 @@
       justify-content: center;
       font-weight: bold;
     }
+
     .day input[type="checkbox"] {
       margin-top: 10px;
       width: 20px;
       height: 20px;
     }
+
     #congratsMessage {
       text-align: center;
       font-size: 1.5rem;
@@ -57,6 +63,7 @@
       font-weight: bold;
       display: none;
     }
+
     #resetBtn {
       display: block;
       margin: 20px auto;
@@ -68,6 +75,7 @@
       border-radius: 8px;
       cursor: pointer;
     }
+
     #resetBtn:hover {
       background-color: #c0392b;
     }
@@ -85,45 +93,34 @@
 
   <div class="calendar" id="calendar"></div>
 
-  <button id="resetBtn">Reset</button>
+  <button id="resetBtn" onclick="resetChallenge()">Reset</button>
 
   <div id="congratsMessage">🎉 Congrats! Challenge completed successfully! 🎉</div>
 
-  <!-- Firebase App (the core Firebase SDK) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <!-- Firebase Firestore -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  <script>
-    // Your Firebase configuration
     const firebaseConfig = {
-    apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
-    authDomain: "challenge-21-days.firebaseapp.com",
-    projectId: "challenge-21-days",
-    storageBucket: "challenge-21-days.firebasestorage.app",
-    messagingSenderId: "470461590812",
-    appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
-    measurementId: "G-JTNJ525GC3"
-  };
+      apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
+      authDomain: "challenge-21-days.firebaseapp.com",
+      projectId: "challenge-21-days",
+      storageBucket: "challenge-21-days.firebasestorage.app",
+      messagingSenderId: "470461590812",
+      appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
+      measurementId: "G-JTNJ525GC3"
+    };
 
-
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
     const calendar = document.getElementById("calendar");
     const congratsMessage = document.getElementById("congratsMessage");
-    const resetBtn = document.getElementById("resetBtn");
+    const userId = localStorage.getItem("challengeUserId") || crypto.randomUUID();
+    localStorage.setItem("challengeUserId", userId);
 
-    const userIdKey = "challengeUserId";
-    let userId = localStorage.getItem(userIdKey);
-    if (!userId) {
-      userId = crypto.randomUUID();
-      localStorage.setItem(userIdKey, userId);
-    }
-
-    // Create calendar days with checkboxes
-    function createCalendar(data = {}) {
+    function renderCalendar(data = {}) {
       calendar.innerHTML = "";
       for (let i = 1; i <= 21; i++) {
         const isChecked = data[`day${i}`] === true;
@@ -131,57 +128,52 @@
         dayDiv.className = "day";
         dayDiv.innerHTML = `
           Day ${i}<br>
-          <input type="checkbox" id="day${i}" ${isChecked ? "checked" : ""}>
+          <input type="checkbox" id="day${i}" ${isChecked ? 'checked' : ''}>
         `;
         calendar.appendChild(dayDiv);
-        dayDiv.querySelector("input").addEventListener("change", checkChallenge);
+        document.getElementById(`day${i}`).addEventListener("change", updateFirestore);
       }
+      updateCongratsMessage(data);
     }
 
-    // Load data from Firestore
-    function loadData() {
-      db.collection("challenge").doc(userId).get()
-        .then(docSnap => {
-          const data = docSnap.exists ? docSnap.data() : {};
-          createCalendar(data);
-          checkChallenge();
-        })
-        .catch(console.error);
-    }
-
-    // Check challenge progress and update Firestore
-    function checkChallenge() {
+    function updateCongratsMessage(data) {
       let streak = 0;
-      let state = {};
       for (let i = 1; i <= 21; i++) {
-        const checkbox = document.getElementById(`day${i}`);
-        const checked = checkbox.checked;
-        state[`day${i}`] = checked;
-        if (checked) streak++;
-        else streak = 0;
+        if (data[`day${i}`]) {
+          streak++;
+        } else {
+          streak = 0;
+        }
       }
-      if (streak === 21) {
-        congratsMessage.style.display = "block";
-      } else {
-        congratsMessage.style.display = "none";
-      }
-      db.collection("challenge").doc(userId).set(state).catch(console.error);
+      congratsMessage.style.display = (streak === 21) ? "block" : "none";
     }
 
-    // Reset challenge
-    function resetChallenge() {
+    async function updateFirestore() {
+      const state = {};
       for (let i = 1; i <= 21; i++) {
-        const checkbox = document.getElementById(`day${i}`);
-        if (checkbox) checkbox.checked = false;
+        state[`day${i}`] = document.getElementById(`day${i}`).checked;
       }
-      congratsMessage.style.display = "none";
-      db.collection("challenge").doc(userId).set({}).catch(console.error);
+      await setDoc(doc(db, "challenge", userId), state);
     }
 
-    resetBtn.addEventListener("click", resetChallenge);
+    async function resetChallenge() {
+      const state = {};
+      for (let i = 1; i <= 21; i++) {
+        state[`day${i}`] = false;
+      }
+      await setDoc(doc(db, "challenge", userId), state);
+    }
 
-    // Initialize on load
-    window.onload = loadData;
+    function subscribeToUpdates() {
+      const docRef = doc(db, "challenge", userId);
+      onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          renderCalendar(docSnap.data());
+        }
+      });
+    }
+
+    window.onload = subscribeToUpdates;
   </script>
 </body>
 </html>
