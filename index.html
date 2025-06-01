@@ -99,91 +99,93 @@
 
   <!-- Firebase SDK -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
-      authDomain: "challenge-21-days.firebaseapp.com",
-      projectId: "challenge-21-days",
-      storageBucket: "challenge-21-days.appspot.com",
-      messagingSenderId: "470461590812",
-      appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
-      measurementId: "G-JTNJ525GC3"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
+    authDomain: "challenge-21-days.firebaseapp.com",
+    projectId: "challenge-21-days",
+    storageBucket: "challenge-21-days.appspot.com",
+    messagingSenderId: "470461590812",
+    appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
+    measurementId: "G-JTNJ525GC3"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
 
-    const calendar = document.getElementById("calendar");
-    const congratsMessage = document.getElementById("congratsMessage");
+  const calendar = document.getElementById("calendar");
+  const congratsMessage = document.getElementById("congratsMessage");
 
-    let userId = localStorage.getItem("challengeUserId");
-    if (!userId) {
-      userId = crypto.randomUUID();
-      localStorage.setItem("challengeUserId", userId);
+  let userId = localStorage.getItem("challengeUserId");
+  if (!userId) {
+    userId = crypto.randomUUID();
+    localStorage.setItem("challengeUserId", userId);
+  }
+
+  async function loadData() {
+    const docRef = doc(db, "challenge", userId);
+    const docSnap = await getDoc(docRef);
+
+    let data = {};
+    if (docSnap.exists()) {
+      data = docSnap.data();
+    } else {
+      for (let i = 1; i <= 21; i++) {
+        data[`day${i}`] = false;
+      }
+      await setDoc(docRef, data);
     }
 
-    async function loadData() {
-      calendar.innerHTML = ""; // Clear old content
-      const docRef = doc(db, "challenge", userId);
-      const docSnap = await getDoc(docRef);
+    calendar.innerHTML = ""; // Clear any existing DOM elements
 
-      let data = {};
-      if (docSnap.exists()) {
-        data = docSnap.data();
+    for (let i = 1; i <= 21; i++) {
+      const isChecked = data[`day${i}`] === true;
+      const dayDiv = document.createElement("div");
+      dayDiv.className = "day";
+      dayDiv.innerHTML = `
+        Day ${i}<br>
+        <input type="checkbox" id="day${i}" ${isChecked ? "checked" : ""} onchange="checkChallenge()">
+      `;
+      calendar.appendChild(dayDiv);
+    }
+
+    window.checkChallenge(); // Initial state
+  }
+
+  window.checkChallenge = async function () {
+    let streak = 0;
+    const state = {};
+
+    for (let i = 1; i <= 21; i++) {
+      const checkbox = document.getElementById(`day${i}`);
+      if (!checkbox) continue;
+      const checked = checkbox.checked;
+      state[`day${i}`] = checked;
+      if (checked) {
+        streak++;
       } else {
-        for (let i = 1; i <= 21; i++) {
-          data[`day${i}`] = false;
-        }
-        await setDoc(docRef, data);
+        streak = 0;
       }
-
-      for (let i = 1; i <= 21; i++) {
-        const isChecked = data[`day${i}`] === true;
-        const dayDiv = document.createElement("div");
-        dayDiv.className = "day";
-        dayDiv.innerHTML = `
-          Day ${i}<br>
-          <input type="checkbox" id="day${i}" ${isChecked ? "checked" : ""} onchange="checkChallenge()">
-        `;
-        calendar.appendChild(dayDiv);
-      }
-
-      checkChallenge();
     }
 
-    window.checkChallenge = async function () {
-      let streak = 0;
-      let state = {};
+    congratsMessage.style.display = streak === 21 ? "block" : "none";
+    await setDoc(doc(db, "challenge", userId), state);
+  };
 
-      for (let i = 1; i <= 21; i++) {
-        const checkbox = document.getElementById(`day${i}`);
-        const checked = checkbox.checked;
-        state[`day${i}`] = checked;
-        if (checked) {
-          streak++;
-        } else {
-          streak = 0;
-        }
-      }
+  window.resetChallenge = async function () {
+    const resetData = {};
+    for (let i = 1; i <= 21; i++) {
+      const checkbox = document.getElementById(`day${i}`);
+      if (checkbox) checkbox.checked = false;
+      resetData[`day${i}`] = false;
+    }
+    congratsMessage.style.display = "none";
+    await setDoc(doc(db, "challenge", userId), resetData);
+  };
 
-      congratsMessage.style.display = streak === 21 ? "block" : "none";
-      await setDoc(doc(db, "challenge", userId), state);
-    };
-
-    window.resetChallenge = async function () {
-      const blankState = {};
-      for (let i = 1; i <= 21; i++) {
-        blankState[`day${i}`] = false;
-        const checkbox = document.getElementById(`day${i}`);
-        if (checkbox) checkbox.checked = false;
-      }
-      congratsMessage.style.display = "none";
-      await setDoc(doc(db, "challenge", userId), blankState);
-    };
-
-    window.onload = loadData;
-  </script>
+  window.onload = loadData;
+</script>
 </body>
 </html>
