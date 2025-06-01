@@ -106,7 +106,7 @@
     apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
     authDomain: "challenge-21-days.firebaseapp.com",
     projectId: "challenge-21-days",
-    storageBucket: "challenge-21-days.appspot.com",
+    storageBucket: "challenge-21-days.firebasestorage.app",
     messagingSenderId: "470461590812",
     appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
     measurementId: "G-JTNJ525GC3"
@@ -117,28 +117,23 @@
 
   const calendar = document.getElementById("calendar");
   const congratsMessage = document.getElementById("congratsMessage");
-
-  let userId = localStorage.getItem("challengeUserId");
-  if (!userId) {
-    userId = crypto.randomUUID();
-    localStorage.setItem("challengeUserId", userId);
-  }
+  const userId = localStorage.getItem("challengeUserId") || crypto.randomUUID();
+  localStorage.setItem("challengeUserId", userId);
 
   async function loadData() {
     const docRef = doc(db, "challenge", userId);
     const docSnap = await getDoc(docRef);
+    let data = docSnap.exists() ? docSnap.data() : {};
 
-    let data = {};
-    if (docSnap.exists()) {
-      data = docSnap.data();
-    } else {
+    // Initialize if data is empty
+    if (!docSnap.exists()) {
       for (let i = 1; i <= 21; i++) {
         data[`day${i}`] = false;
       }
       await setDoc(docRef, data);
     }
 
-    calendar.innerHTML = ""; // Clear any existing DOM elements
+    calendar.innerHTML = ""; // Clear previous entries
 
     for (let i = 1; i <= 21; i++) {
       const isChecked = data[`day${i}`] === true;
@@ -146,21 +141,20 @@
       dayDiv.className = "day";
       dayDiv.innerHTML = `
         Day ${i}<br>
-        <input type="checkbox" id="day${i}" ${isChecked ? "checked" : ""} onchange="checkChallenge()">
+        <input type="checkbox" id="day${i}" ${isChecked ? 'checked' : ''} onchange="checkChallenge()">
       `;
       calendar.appendChild(dayDiv);
     }
-
-    window.checkChallenge(); // Initial state
+    window.checkChallenge(); // Check initial state
   }
 
+  // Expose globally
   window.checkChallenge = async function () {
     let streak = 0;
-    const state = {};
+    let state = {};
 
     for (let i = 1; i <= 21; i++) {
       const checkbox = document.getElementById(`day${i}`);
-      if (!checkbox) continue;
       const checked = checkbox.checked;
       state[`day${i}`] = checked;
       if (checked) {
@@ -171,18 +165,22 @@
     }
 
     congratsMessage.style.display = streak === 21 ? "block" : "none";
+
     await setDoc(doc(db, "challenge", userId), state);
   };
 
   window.resetChallenge = async function () {
-    const resetData = {};
     for (let i = 1; i <= 21; i++) {
       const checkbox = document.getElementById(`day${i}`);
       if (checkbox) checkbox.checked = false;
-      resetData[`day${i}`] = false;
     }
     congratsMessage.style.display = "none";
-    await setDoc(doc(db, "challenge", userId), resetData);
+
+    const resetState = {};
+    for (let i = 1; i <= 21; i++) {
+      resetState[`day${i}`] = false;
+    }
+    await setDoc(doc(db, "challenge", userId), resetState);
   };
 
   window.onload = loadData;
