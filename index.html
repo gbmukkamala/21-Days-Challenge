@@ -12,10 +12,12 @@
       background: linear-gradient(to right, #f5f7fa, #c3cfe2);
       color: #333;
     }
+
     h1 {
       text-align: center;
       color: #2c3e50;
     }
+
     .rules {
       max-width: 700px;
       margin: 0 auto 30px;
@@ -24,6 +26,36 @@
       border-radius: 12px;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
+
+    .input-container {
+      max-width: 700px;
+      margin: 0 auto 20px;
+      text-align: center;
+    }
+
+    #userIdInput {
+      padding: 8px;
+      width: 60%;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-right: 8px;
+    }
+
+    #loadBtn {
+      padding: 9px 18px;
+      font-size: 1rem;
+      border: none;
+      background-color: #3498db;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #loadBtn:hover {
+      background-color: #2980b9;
+    }
+
     .calendar {
       display: flex;
       flex-wrap: wrap;
@@ -32,6 +64,7 @@
       max-width: 700px;
       margin: 0 auto;
     }
+
     .day {
       width: 80px;
       height: 100px;
@@ -44,11 +77,14 @@
       justify-content: center;
       font-weight: bold;
     }
+
     .day input[type="checkbox"] {
       margin-top: 10px;
       width: 20px;
       height: 20px;
+      cursor: pointer;
     }
+
     #congratsMessage {
       text-align: center;
       font-size: 1.5rem;
@@ -57,6 +93,7 @@
       font-weight: bold;
       display: none;
     }
+
     #resetBtn {
       display: block;
       margin: 20px auto;
@@ -68,8 +105,20 @@
       border-radius: 8px;
       cursor: pointer;
     }
-    #resetBtn:hover {
-      background-color: #c0392b;
+
+    #resetBtn:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .helper-text {
+      font-size: 0.9rem;
+      color: #555;
+      margin-top: 6px;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
     }
   </style>
 </head>
@@ -83,18 +132,22 @@
     </p>
   </div>
 
-  <div style="max-width:700px; margin: 0 auto 20px; text-align:center;">
-    <label for="userIdInput"><strong>Enter your User ID:</strong></label>
-    <input type="text" id="userIdInput" placeholder="Type your unique ID here" style="padding:5px; width:60%;" />
-    <button onclick="loadUserData()" style="padding:6px 12px; margin-left:8px; cursor:pointer;">Load Data</button>
+  <div class="input-container">
+    <label for="userIdInput"><strong>Enter your User ID:</strong></label><br />
+    <input type="text" id="userIdInput" placeholder="Type a unique ID (e.g. your name or email)" />
+    <button id="loadBtn">Load Data</button>
+    <div class="helper-text">
+      Use the same User ID on all your devices to sync your challenge progress.
+    </div>
   </div>
 
   <div class="calendar" id="calendar"></div>
 
-  <button id="resetBtn" onclick="resetChallenge()" disabled>Reset</button>
+  <button id="resetBtn" disabled>Reset</button>
 
   <div id="congratsMessage">🎉 Congrats! Challenge completed successfully! 🎉</div>
 
+  <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -115,15 +168,18 @@
     const calendar = document.getElementById("calendar");
     const congratsMessage = document.getElementById("congratsMessage");
     const resetBtn = document.getElementById("resetBtn");
+    const loadBtn = document.getElementById("loadBtn");
     const userIdInput = document.getElementById("userIdInput");
 
-    let currentUserId = localStorage.getItem("challengeUserId") || "";
+    let currentUserId = "";
 
-    // If saved userId exists, prefill input
-    if(currentUserId) {
-      userIdInput.value = currentUserId;
+    loadBtn.addEventListener("click", () => {
       loadUserData();
-    }
+    });
+
+    resetBtn.addEventListener("click", () => {
+      resetChallenge();
+    });
 
     async function loadUserData() {
       currentUserId = userIdInput.value.trim();
@@ -132,29 +188,33 @@
         return;
       }
 
-      localStorage.setItem("challengeUserId", currentUserId);
+      try {
+        calendar.innerHTML = "";
+        congratsMessage.style.display = "none";
+        resetBtn.disabled = true;
 
-      calendar.innerHTML = "";  // Clear calendar before loading
+        const docRef = doc(db, "challenge", currentUserId);
+        const docSnap = await getDoc(docRef);
+        const data = docSnap.exists() ? docSnap.data() : {};
 
-      const docRef = doc(db, "challenge", currentUserId);
-      const docSnap = await getDoc(docRef);
-      const data = docSnap.exists() ? docSnap.data() : {};
+        for (let i = 1; i <= 21; i++) {
+          const isChecked = data[`day${i}`] === true;
+          const dayDiv = document.createElement("div");
+          dayDiv.className = "day";
+          dayDiv.innerHTML = `
+            Day ${i}<br>
+            <input type="checkbox" id="day${i}" ${isChecked ? 'checked' : ''} onchange="checkChallenge()" >
+          `;
+          calendar.appendChild(dayDiv);
+        }
 
-      for (let i = 1; i <= 21; i++) {
-        const isChecked = data[`day${i}`] === true;
-        const dayDiv = document.createElement("div");
-        dayDiv.className = "day";
-        dayDiv.innerHTML = `
-          Day ${i}<br>
-          <input type="checkbox" id="day${i}" ${isChecked ? 'checked' : ''} onchange="checkChallenge()" >
-        `;
-        calendar.appendChild(dayDiv);
+        resetBtn.disabled = false;
+
+        await checkChallenge();
+      } catch (error) {
+        console.error("Error loading data:", error);
+        alert("Failed to load data. See console for details.");
       }
-
-      resetBtn.disabled = false;
-      congratsMessage.style.display = "none";
-
-      checkChallenge();
     }
 
     window.checkChallenge = async function() {
@@ -167,6 +227,7 @@
         const checkbox = document.getElementById(`day${i}`);
         const checked = checkbox.checked;
         state[`day${i}`] = checked;
+
         if (checked) {
           streak++;
         } else {
@@ -180,10 +241,14 @@
         congratsMessage.style.display = "none";
       }
 
-      await setDoc(doc(db, "challenge", currentUserId), state);
+      try {
+        await setDoc(doc(db, "challenge", currentUserId), state);
+      } catch (error) {
+        console.error("Error saving data:", error);
+      }
     };
 
-    window.resetChallenge = async function() {
+    async function resetChallenge() {
       if (!currentUserId) return;
 
       for (let i = 1; i <= 21; i++) {
@@ -193,8 +258,12 @@
 
       congratsMessage.style.display = "none";
 
-      await setDoc(doc(db, "challenge", currentUserId), {});
-    };
+      try {
+        await setDoc(doc(db, "challenge", currentUserId), {});
+      } catch (error) {
+        console.error("Error resetting data:", error);
+      }
+    }
   </script>
 </body>
 </html>
