@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>21 Days Challenge</title>
   <style>
     body {
@@ -25,35 +25,6 @@
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-
-    .input-container {
-      max-width: 700px;
-      margin: 0 auto 20px;
-      text-align: center;
-    }
-
-    #userIdInput {
-      padding: 8px;
-      width: 60%;
-      font-size: 1rem;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      margin-right: 8px;
-    }
-
-    #loadBtn {
-      padding: 9px 18px;
-      font-size: 1rem;
-      border: none;
-      background-color: #3498db;
-      color: white;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    #loadBtn:hover {
-      background-color: #2980b9;
     }
 
     .calendar {
@@ -82,7 +53,6 @@
       margin-top: 10px;
       width: 20px;
       height: 20px;
-      cursor: pointer;
     }
 
     #congratsMessage {
@@ -106,19 +76,8 @@
       cursor: pointer;
     }
 
-    #resetBtn:disabled {
-      background-color: #ccc;
-      cursor: not-allowed;
-    }
-
-    .helper-text {
-      font-size: 0.9rem;
-      color: #555;
-      margin-top: 6px;
-      max-width: 700px;
-      margin-left: auto;
-      margin-right: auto;
-      text-align: center;
+    #resetBtn:hover {
+      background-color: #c0392b;
     }
   </style>
 </head>
@@ -132,18 +91,9 @@
     </p>
   </div>
 
-  <div class="input-container">
-    <label for="userIdInput"><strong>Enter your User ID:</strong></label><br />
-    <input type="text" id="userIdInput" placeholder="Type a unique ID (e.g. your name or email)" />
-    <button id="loadBtn">Load Data</button>
-    <div class="helper-text">
-      Use the same User ID on all your devices to sync your challenge progress.
-    </div>
-  </div>
-
   <div class="calendar" id="calendar"></div>
 
-  <button id="resetBtn" disabled>Reset</button>
+  <button id="resetBtn" onclick="resetChallenge()">Reset</button>
 
   <div id="congratsMessage">🎉 Congrats! Challenge completed successfully! 🎉</div>
 
@@ -156,7 +106,7 @@
       apiKey: "AIzaSyBPJLEbi2a7d2Z-otz-TdiBc1cpDnfAeEs",
       authDomain: "challenge-21-days.firebaseapp.com",
       projectId: "challenge-21-days",
-      storageBucket: "challenge-21-days.firebasestorage.app",
+      storageBucket: "challenge-21-days.appspot.com",
       messagingSenderId: "470461590812",
       appId: "1:470461590812:web:9e06d8a2e2b545f66b5ed9",
       measurementId: "G-JTNJ525GC3"
@@ -167,35 +117,29 @@
 
     const calendar = document.getElementById("calendar");
     const congratsMessage = document.getElementById("congratsMessage");
-    const resetBtn = document.getElementById("resetBtn");
-    const loadBtn = document.getElementById("loadBtn");
-    const userIdInput = document.getElementById("userIdInput");
 
-    let currentUserId = "";
+    let userId = localStorage.getItem("challengeUserId");
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem("challengeUserId", userId);
+    }
 
-    loadBtn.addEventListener("click", () => {
-      loadUserData();
-    });
-
-    resetBtn.addEventListener("click", () => {
-      resetChallenge();
-    });
-
-    async function loadUserData() {
-      currentUserId = userIdInput.value.trim();
-      if (!currentUserId) {
-        alert("Please enter a valid User ID.");
-        return;
-      }
-
+    async function loadData() {
       try {
-        calendar.innerHTML = "";
-        congratsMessage.style.display = "none";
-        resetBtn.disabled = true;
-
-        const docRef = doc(db, "challenge", currentUserId);
+        const docRef = doc(db, "challenge", userId);
         const docSnap = await getDoc(docRef);
-        const data = docSnap.exists() ? docSnap.data() : {};
+        let data = {};
+
+        if (docSnap.exists()) {
+          data = docSnap.data();
+        } else {
+          for (let i = 1; i <= 21; i++) {
+            data[`day${i}`] = false;
+          }
+          await setDoc(docRef, data);
+        }
+
+        calendar.innerHTML = "";
 
         for (let i = 1; i <= 21; i++) {
           const isChecked = data[`day${i}`] === true;
@@ -203,67 +147,64 @@
           dayDiv.className = "day";
           dayDiv.innerHTML = `
             Day ${i}<br>
-            <input type="checkbox" id="day${i}" ${isChecked ? 'checked' : ''} onchange="checkChallenge()" >
+            <input type="checkbox" id="day${i}" ${isChecked ? "checked" : ""} onchange="checkChallenge()">
           `;
           calendar.appendChild(dayDiv);
         }
 
-        resetBtn.disabled = false;
-
-        await checkChallenge();
+        checkChallenge();
       } catch (error) {
         console.error("Error loading data:", error);
-        alert("Failed to load data. See console for details.");
       }
     }
 
-    window.checkChallenge = async function() {
-      if (!currentUserId) return;
-
-      let streak = 0;
-      let state = {};
-
-      for (let i = 1; i <= 21; i++) {
-        const checkbox = document.getElementById(`day${i}`);
-        const checked = checkbox.checked;
-        state[`day${i}`] = checked;
-
-        if (checked) {
-          streak++;
-        } else {
-          streak = 0;
-        }
-      }
-
-      if (streak === 21) {
-        congratsMessage.style.display = "block";
-      } else {
-        congratsMessage.style.display = "none";
-      }
-
+    window.checkChallenge = async function () {
       try {
-        await setDoc(doc(db, "challenge", currentUserId), state);
+        let streak = 0;
+        let state = {};
+        for (let i = 1; i <= 21; i++) {
+          const checkbox = document.getElementById(`day${i}`);
+          const checked = checkbox.checked;
+          state[`day${i}`] = checked;
+          if (checked) {
+            streak++;
+          } else {
+            streak = 0;
+          }
+        }
+
+        if (streak === 21) {
+          congratsMessage.style.display = "block";
+        } else {
+          congratsMessage.style.display = "none";
+        }
+
+        await setDoc(doc(db, "challenge", userId), state);
       } catch (error) {
-        console.error("Error saving data:", error);
+        console.error("Error updating challenge:", error);
       }
     };
 
-    async function resetChallenge() {
-      if (!currentUserId) return;
-
-      for (let i = 1; i <= 21; i++) {
-        const checkbox = document.getElementById(`day${i}`);
-        if (checkbox) checkbox.checked = false;
-      }
-
-      congratsMessage.style.display = "none";
-
+    window.resetChallenge = async function () {
       try {
-        await setDoc(doc(db, "challenge", currentUserId), {});
+        for (let i = 1; i <= 21; i++) {
+          const checkbox = document.getElementById(`day${i}`);
+          checkbox.checked = false;
+        }
+        congratsMessage.style.display = "none";
+
+        const blankState = {};
+        for (let i = 1; i <= 21; i++) {
+          blankState[`day${i}`] = false;
+        }
+
+        await setDoc(doc(db, "challenge", userId), blankState);
       } catch (error) {
-        console.error("Error resetting data:", error);
+        console.error("Error resetting challenge:", error);
       }
-    }
+    };
+
+    window.addEventListener("DOMContentLoaded", loadData);
   </script>
 </body>
 </html>
